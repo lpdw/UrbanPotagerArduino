@@ -5,7 +5,7 @@
 
 */
 /***** Own Libs *****/
-#include "chardef.h"   
+#include "chardef.h"
 #include <Wire.h>
 #include "rgb_lcd.h"
 
@@ -20,20 +20,23 @@ DHT dht(DHTPIN, DHTTYPE);
 #include <LTask.h>
 #include <LWiFi.h>
 #include <LWiFiClient.h>
+#include <ArduinoJson.h>
 #define WIFI_AP "LPDW-IOT"
 #define WIFI_PASSWORD "LPDWIOTROUTER2015"
 #define WIFI_AUTH LWIFI_WPA  // choose from LWIFI_OPEN, LWIFI_WPA, or LWIFI_WEP.
 #define SITE_URL "urbanpotager.labesse.me"
+#define SITE_PORT 80
+#define API_KEY ""
 LWiFiClient c;
 long webServerDelay = 60000; // 1 Mn
-long lastServerUpdate = 0; 
+long lastServerUpdate[4] = {0, 0, 0, 0};
 boolean disconnectedMsg = false;
 
 rgb_lcd lcd;
 const int colorR = 0;
 const int colorG = 0;
 const int colorB = 255;
-byte celcius[8]		= CELCIUS_ARRAY; 
+byte celcius[8]		= CELCIUS_ARRAY;
 byte light[8]		= LIGHT_ARRAY;
 byte humidity[8]	= HUMIDITY_ARRAY;
 byte temp[8]		= TEMP_ARRAY;
@@ -102,37 +105,37 @@ void loop()
         waterLevel = "LOW";
         lcd.setRGB(200, 0, 0);
         break;
-      default: 
+      default:
         waterLevel = "LOW";
         break;
-        
-    } 
-    
-    textTemp = doubleToString(temp,0);
-    textHumid = doubleToString(humid,0);
-    textLight = doubleToString(value,0);
-    textWater = doubleToString(waterSwitch,0);
-        
+
+    }
+
+    textTemp = doubleToString(temp, 0);
+    textHumid = doubleToString(humid, 0);
+    textLight = doubleToString(value, 0);
+    textWater = doubleToString(waterSwitch, 0);
+
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.write(byte(3));  // Temp char    
+    lcd.write(byte(3));  // Temp char
     lcd.setCursor(1, 0);
     lcd.print(":");
     lcd.setCursor(2, 0);
     lcd.print(textTemp);
     lcd.setCursor(4, 0);
     lcd.write(byte(0));  // Celcius char
-    lcd.setCursor(10, 0);    
+    lcd.setCursor(10, 0);
     lcd.write(byte(2));  // Celcius char
-    lcd.setCursor(11, 0);    
+    lcd.setCursor(11, 0);
     lcd.print(":");
     lcd.setCursor(12, 0);
-    lcd.print(textHumid);   
-    lcd.setCursor(14, 0); 
+    lcd.print(textHumid);
+    lcd.setCursor(14, 0);
     lcd.print("%");
-    
+
     lcd.setCursor(0, 1);
-    lcd.write(byte(1));  // Light char    
+    lcd.write(byte(1));  // Light char
     lcd.setCursor(1, 1);
     lcd.print(":");
     lcd.setCursor(2, 1);
@@ -140,17 +143,20 @@ void loop()
     lcd.setCursor(4, 1);
     lcd.print("%");
     lcd.setCursor(10, 1);
-    lcd.write(byte(4));  // Water char    
+    lcd.write(byte(4));  // Water char
     lcd.setCursor(11, 1);
     lcd.print(":");
     lcd.setCursor(12, 1);
-    lcd.print(waterLevel);  
-   
-    
+    lcd.print(waterLevel);
+
+
   }
   delay(2000);
-  
-  SendDataWebServer();
+
+  SendDataWebServer("air-temperature",textTemp,0);
+  SendDataWebServer("humidity-air",textHumid,1);
+  SendDataWebServer("daylight-level",textLight,2);
+  SendDataWebServer("water-level",textLight,3);
 
 }
 
@@ -159,61 +165,66 @@ void loop()
 *********************************************************************************************************/
 
 /****************************************************************
- DISPLAY Initialization
+  DISPLAY Initialization
 ****************************************************************/
-void SendDataWebServer() {
- 
-  if (((millis() - lastServerUpdate) >  webServerDelay)  || (millis() < lastServerUpdate) ) {
+void SendDataWebServer(String dataType, String dataValue, int lastUpdateId) {
+
+  if (((millis() - lastServerUpdate[lastUpdateId]) >  webServerDelay)  || (millis() < lastServerUpdate[lastUpdateId])) {
     Serial.print("Millis=");
     Serial.print(millis());
     Serial.print(" - lastServerUpdate=");
-    Serial.print(lastServerUpdate);
+    Serial.print(lastServerUpdate[lastUpdateId]);
     Serial.print(" - webServerDelay=");
-    Serial.println(webServerDelay);    
+    Serial.println(webServerDelay);
     Serial.println("");
     // keep retrying until connected to website
     Serial.println("Connecting to WebSite");
-    while (0 == c.connect(SITE_URL, 80))
+    while (0 == c.connect(SITE_URL, SITE_PORT))
     {
       Serial.println("Re-Connecting to WebSite");
       delay(1000);
     }
-    
+
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("  Connecting to ");
-    lcd.setCursor(0, 1);    
+    lcd.setCursor(0, 1);
     lcd.print("  WebSite");
-    while (0 == c.connect(SITE_URL, 80))
+    while (0 == c.connect(SITE_URL, SITE_PORT))
     {
       Serial.println("Re-Connecting to WebSite");
       delay(1000);
     }
+
+    String JsonPostData;
+
+    StaticJsonBuffer<200> jsonBuffer;
+    JsonObject& jsonObj = jsonBuffer.createObject();
+    if (jsonObj.containsKey("type"))
+    {
+      jsonObj.remove("type");
+    }
+    if (jsonObj.containsKey("value"))
+    {
+      jsonObj.remove("value");
+    }
+    jsonObj["type"] = dataType;
+    jsonObj["value"] = dataValue;
+    jsonObj.printTo(JsonPostData);
   
     // send HTTP request, ends with 2 CR/LF
-    Serial.println("send HTTP GET request");
-    /*c.println("GET / HTTP/1.1");
+    Serial.println("send HTTP POST request");
+    c.println("POST /measures?api_key="API_KEY" HTTP/1.1");
     c.println("Host: " SITE_URL);
-    c.println("Connection: close");
-    c.println();*/
-    c.print("GET /UrbanaBot/InsertData.php?airTemp=");
-    c.print(textTemp);
-    c.print("&airHumidity=");
-    c.print(textHumid); 
-    c.print("&airQuality=");
-    c.print(0); 
-    c.print("&lightValue=");
-    c.print(textLight); 
-    c.print("&waterLevel=");
-    c.print(0); 
-    c.print("&waterTemp=");
-    c.print(0); // temporaire
-    c.print("&nutriValue=");
-    c.print(0); 
-    c.println(" HTTP/1.1");
-    c.println("Host: nesko-no-ip.org");
-    c.println("Connection: close");                             
+    c.println("User-Agent: Arduino/1.0");
+    c.println("Connection: close\r\nContent-Type: application/json");
+    c.print("Content-Length: "+ doubleToString(JsonPostData.length(),0) +" \r\n");
+    Serial.println(JsonPostData.length());
     c.println();
+    c.print(JsonPostData);
+    Serial.println(JsonPostData);
+    c.println();
+
     // waiting for server response
     Serial.println("waiting HTTP response:");
     while (!c.available())
@@ -238,34 +249,36 @@ void SendDataWebServer() {
         }
       }
     }
-  
+
     if (!disconnectedMsg)
     {
       Serial.println("disconnected by server");
       disconnectedMsg = true;
     }
 
-    lastServerUpdate = millis();
+    lastServerUpdate[lastUpdateId] = millis();
   }
 }
 
+
+
 /****************************************************************
- Rounds down (via intermediary integer conversion truncation)
+  Rounds down (via intermediary integer conversion truncation)
 ****************************************************************/
-String doubleToString(double input,int decimalPlaces)
+String doubleToString(double input, int decimalPlaces)
 {
-  if(decimalPlaces!=0){
-  String string = String((int)(input*pow(10,decimalPlaces)));
-  if(abs(input)<1)
+  if (decimalPlaces != 0) {
+    String string = String((int)(input * pow(10, decimalPlaces)));
+    if (abs(input) < 1)
     {
-    if(input>0)
-      string = "0"+string;
-    else if(input<0)
-      string = string.substring(0,1)+"0"+string.substring(1);
+      if (input > 0)
+        string = "0" + string;
+      else if (input < 0)
+        string = string.substring(0, 1) + "0" + string.substring(1);
     }
-    return string.substring(0,string.length()-decimalPlaces)+"."+string.substring(string.length()-decimalPlaces);
+    return string.substring(0, string.length() - decimalPlaces) + "." + string.substring(string.length() - decimalPlaces);
   }
-  else 
+  else
   {
     return String((int)input);
   }
