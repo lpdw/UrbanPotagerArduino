@@ -49,9 +49,8 @@ String textTemp;
 String textHumid;
 String textLight;
 String textWater;
- 
 
-void setup() 
+void setup()
 {
   Serial.begin(9600);
   lcd.begin(16, 2);
@@ -61,17 +60,17 @@ void setup()
   lcd.print("UrbanPotager LIO");
   Serial.println("UrbanPotager LIO");
   delay(1000);
-  
-// keep retrying until connected to website
+
+  // keep retrying until connected to website
   LWiFi.begin();
-  
+
   // keep retrying until connected to AP
   Serial.println("Connecting to AP");
   while (0 == LWiFi.connect(WIFI_AP, LWiFiLoginInfo(WIFI_AUTH, WIFI_PASSWORD)))
   {
     delay(1000);
   }
-  pinMode(FLOATPIN,INPUT_PULLUP);  
+  pinMode(FLOATPIN, INPUT_PULLUP);
   // set up the LCD's number of columns and rows:
 
   lcd.createChar(0, celcius);
@@ -85,13 +84,13 @@ void setup()
   lcd.clear();
 }
 
-void loop() 
+void loop()
 {
- String waterLevel;
- float t = 0.0;
- float h = 0.0;
- int value = map(analogRead(pinLight),0,1023,0,100);
- if(dht.readHT(&t, &h))
+  String waterLevel;
+  float t = 0.0;
+  float h = 0.0;
+  int value = map(analogRead(pinLight), 0, 1023, 0, 100);
+  if (dht.readHT(&t, &h))
   {
     int temp = t;
     int humid = h;
@@ -156,7 +155,7 @@ void loop()
   SendDataWebServer("air-temperature",textTemp,0);
   SendDataWebServer("humidity-air",textHumid,1);
   SendDataWebServer("daylight-level",textLight,2);
-  SendDataWebServer("water-level",textLight,3);
+  SendDataWebServer("water-level",textWater,3);
 
 }
 
@@ -215,7 +214,7 @@ void SendDataWebServer(String dataType, String dataValue, int lastUpdateId) {
     // send HTTP request, ends with 2 CR/LF
     Serial.println("send HTTP POST request");
     c.println("POST /measures?api_key="API_KEY" HTTP/1.1");
-    c.println("Host: " SITE_URL);
+    c.println("Host: "SITE_URL);
     c.println("User-Agent: Arduino/1.0");
     c.println("Connection: close\r\nContent-Type: application/json");
     c.print("Content-Length: "+ doubleToString(JsonPostData.length(),0) +" \r\n");
