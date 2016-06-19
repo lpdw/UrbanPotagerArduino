@@ -42,6 +42,8 @@ byte humidity[8]	= HUMIDITY_ARRAY;
 byte temp[8]		= TEMP_ARRAY;
 byte water1[8]		= WATER_ARRAY;
 byte water2[8]		= WATER2_ARRAY;
+byte sending[8]    = SENDING_ARRAY;
+byte urbanlogo[8]    = URBANLOGO_ARRAY;
 
 const int pinLight = A0;
 
@@ -52,12 +54,26 @@ String textWater;
 
 void setup()
 {
-  Serial.begin(9600);
+  Serial.begin(115200);
+  
   lcd.begin(16, 2);
   lcd.setRGB(colorR, colorG, colorB);
+  
+  // set up the LCD's number of columns and rows:
+  lcd.createChar(0, celcius);
+  lcd.createChar(1, light);
+  lcd.createChar(2, humidity);
+  lcd.createChar(3, temp);
+  lcd.createChar(4, water1);
+  lcd.createChar(5, water2);
+  lcd.createChar(6, sending);
+  lcd.createChar(7, urbanlogo);
+  
   lcd.setCursor(0, 0);
   // Print a message to the LCD.
-  lcd.print("UrbanPotager LIO");
+  lcd.write(byte(7));  // Urban logo char
+  lcd.setCursor(1, 0);
+  lcd.print("rbanPotager LIO");
   Serial.println("UrbanPotager LIO");
   delay(1000);
 
@@ -65,20 +81,14 @@ void setup()
   LWiFi.begin();
 
   // keep retrying until connected to AP
+  lcd.setCursor(0, 1);
+  lcd.print("Connecting to AP");
   Serial.println("Connecting to AP");
   while (0 == LWiFi.connect(WIFI_AP, LWiFiLoginInfo(WIFI_AUTH, WIFI_PASSWORD)))
   {
     delay(1000);
   }
   pinMode(FLOATPIN, INPUT_PULLUP);
-  // set up the LCD's number of columns and rows:
-
-  lcd.createChar(0, celcius);
-  lcd.createChar(1, light);
-  lcd.createChar(2, humidity);
-  lcd.createChar(3, temp);
-  lcd.createChar(4, water1);
-  lcd.createChar(5, water2);
 
   dht.begin();
   lcd.clear();
@@ -99,13 +109,16 @@ void loop()
       case HIGH:
         waterLevel = "HIGH";
         lcd.setRGB(100, 100, 255);
+        textWater = "100"; //temp assignation for demo purpose : 100% or 0% instead of 1 for high and 0 for low 
         break;
       case LOW:
         waterLevel = "LOW";
         lcd.setRGB(200, 0, 0);
+        textWater = "0"; //temp assignation for demo purpose
         break;
       default:
         waterLevel = "LOW";
+        textWater = "0"; //temp assignation for demo purpose
         break;
 
     }
@@ -113,7 +126,7 @@ void loop()
     textTemp = doubleToString(temp, 0);
     textHumid = doubleToString(humid, 0);
     textLight = doubleToString(value, 0);
-    textWater = doubleToString(waterSwitch, 0);
+    //textWater = doubleToString(waterSwitch, 0); //temp for demo purpose
 
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -176,25 +189,47 @@ void SendDataWebServer(String dataType, String dataValue, int lastUpdateId) {
     Serial.print(" - webServerDelay=");
     Serial.println(webServerDelay);
     Serial.println("");
+    
     // keep retrying until connected to website
-    Serial.println("Connecting to WebSite");
+    Serial.println("Connecting to server");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Connecting to");
+    lcd.setCursor(0, 1);
+    lcd.print("Server ...");
     while (0 == c.connect(SITE_URL, SITE_PORT))
     {
       Serial.println("Re-Connecting to WebSite");
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Re-Connecting to");
+      lcd.setCursor(0, 1);
+      lcd.print("Server ...");
       delay(1000);
     }
+
+    
+    while (0 == c.connect(SITE_URL, SITE_PORT))
+    {
+      Serial.println("Re-Connecting to WebSite");
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Re-Connecting to");
+      lcd.setCursor(0, 1);
+      lcd.print("Server ...");
+      delay(1000);
+    }
+
 
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("  Connecting to ");
+    lcd.print(dataType);
     lcd.setCursor(0, 1);
-    lcd.print("  WebSite");
-    while (0 == c.connect(SITE_URL, SITE_PORT))
-    {
-      Serial.println("Re-Connecting to WebSite");
-      delay(1000);
-    }
-
+    lcd.print("Sending data");
+    lcd.setCursor(14, 1);
+    lcd.write(byte(6));
+    
+  
     String JsonPostData;
 
     StaticJsonBuffer<200> jsonBuffer;
@@ -223,6 +258,12 @@ void SendDataWebServer(String dataType, String dataValue, int lastUpdateId) {
     c.print(JsonPostData);
     Serial.println(JsonPostData);
     c.println();
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(dataType);
+    lcd.setCursor(0, 1);
+    lcd.print("Waiting response");
 
     // waiting for server response
     Serial.println("waiting HTTP response:");
@@ -256,6 +297,7 @@ void SendDataWebServer(String dataType, String dataValue, int lastUpdateId) {
     }
 
     lastServerUpdate[lastUpdateId] = millis();
+    lcd.clear();
   }
 }
 
